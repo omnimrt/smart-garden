@@ -1,0 +1,9 @@
+# Runtime data
+readings.csv
+
+# Python-generated files
+__pycache__/
+*.pyc
+
+# Local secrets
+.env
