@@ -47,6 +47,12 @@ Environmental sensors and automated plant monitoring are not yet implemented.
 - OWASP security tooling
 - Data analytics and AI/ML
 
+## Process Models
+
+### Soil Moisture Monitoring — BPMN 2.0
+
+![Soil Moisture Monitoring Process](docs/processes/soil-moisture-monitoring.svg)ß
+
 ## Development Roadmap
 
 | Version | Objective                                                      | Status      |
