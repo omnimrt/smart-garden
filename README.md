@@ -51,7 +51,19 @@ Environmental sensors and automated plant monitoring are not yet implemented.
 
 ### Soil Moisture Monitoring — BPMN 2.0
 
-![Soil Moisture Monitoring Process](docs/processes/soil-moisture-monitoring.svg)ß
+![Soil Moisture Monitoring Process](docs/processes/soil-moisture-monitoring.svg)
+
+## UML Models
+
+### UC-001 — Soil Moisture Monitoring
+
+![UML Use Case Diagram](docs/uml/UC-001-soil-moisture-monitoring.jpg)
+
+The diagram documents the Garden Owner's interactions with
+Smart Garden and traces the use cases to requirement FR-001.
+
+The editable Enterprise Architect model is available at
+[SmartGarden.qea](docs/uml/SmartGarden.qea).
 
 ## Development Roadmap
 
