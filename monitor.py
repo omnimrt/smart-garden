@@ -4,28 +4,37 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-# Read the Raspberry Pi CPU temperature
-result = subprocess.check_output(
-    ["vcgencmd", "measure_temp"],
-    text=True
-).strip()
+def parse_temperature(output):
+    return float(output.split("=")[1].replace("'C", ""))
 
-temperature = float(result.split("=")[1].replace("'C", ""))
 
-# Prepare our CSV file
-file_path = Path("readings.csv")
-new_file = not file_path.exists()
+def read_cpu_temperature():
+    result = subprocess.check_output(
+        ["vcgencmd", "measure_temp"],
+        text=True
+    ).strip()
 
-# Save the measurement
-with file_path.open("a", newline="") as file:
-    writer = csv.writer(file)
+    return parse_temperature(result)
 
-    if new_file:
-        writer.writerow(["timestamp", "cpu_temperature_c"])
+def save_reading(temperature, file_path=Path("readings.csv")):
+    new_file = not file_path.exists()
 
-    writer.writerow([
-        datetime.now().astimezone().isoformat(timespec="seconds"),
-        temperature
-    ])
+    with file_path.open("a", newline="") as file:
+        writer = csv.writer(file)
 
-print(f"Recorded CPU temperature: {temperature:.1f}°C")
+        if new_file:
+            writer.writerow(["timestamp", "cpu_temperature_c"])
+
+        writer.writerow([
+            datetime.now().astimezone().isoformat(timespec="seconds"),
+            temperature
+        ])
+
+def main():
+    temperature = read_cpu_temperature()
+    save_reading(temperature)
+    print(f"Recorded CPU temperature: {temperature:.1f}°C")
+
+
+if __name__ == "__main__":
+    main()
