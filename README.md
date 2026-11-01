@@ -35,17 +35,79 @@ Environmental sensors and automated plant monitoring are not yet implemented.
 - Remote access: SSH
 - Version control: Git and GitHub
 - Data storage: CSV
+- Backend: FastAPI
+- API server: Uvicorn
+- Automated testing: pytest and FastAPI TestClient
+- Continuous integration: GitHub Actions
 
 **Planned technologies:**
 
-- ESP32 and environmental sensors
-- SQLite and PostgreSQL
-- FastAPI and REST APIs
-- MQTT
-- Web dashboard
-- Docker and CI/CD
-- OWASP security tooling
-- Data analytics and AI/ML
+- Microcontrollers: ESP32
+- Sensors: Capacitive soil moisture sensors, BH1750, BME280
+- Hardware interfaces: I²C, SPI, ADC (MCP3008), CD74HC4067 multiplexer
+- Data storage: PostgreSQL
+- IoT communication: MQTT
+- Backend extensions: REST APIs, sensor data ingestion and validation
+- Frontend: Web dashboard (framework TBD)
+- Data visualization: Sensor readings, historical trends and alerts
+- Containerization: Docker
+- Deployment: systemd services, automated deployment and rollback procedures
+- Security: OWASP Threat Dragon, STRIDE threat modeling and security testing
+- Infrastructure: Network segmentation, access controls and monitoring
+- Testing: Integration, API and end-to-end testing
+- Observability: Structured logging, metrics and health monitoring
+- Automation: Sensor-based irrigation and lighting control
+- Analytics: Historical data analysis and anomaly detection
+- AI/ML: Predictive analytics and intelligent garden management (future scope)
+
+## FastAPI Backend
+
+Smart Garden includes a Python-based REST API built with FastAPI.
+
+### Current Endpoints
+
+| Method | Endpoint  | Description                   |
+| ------ | --------- | ----------------------------- |
+| GET    | `/health` | Returns the API health status |
+
+Example response:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+### Local Development
+
+Create and activate a Python virtual environment, then install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Start the development server:
+
+```bash
+python -m uvicorn app.main:app --reload --host 127.0.0.1
+```
+
+The API is available at:
+
+- Health endpoint: http://127.0.0.1:8000/health
+- Swagger UI: http://127.0.0.1:8000/docs
+
+### Automated Tests
+
+Run the complete test suite:
+
+```bash
+python -m pytest -v
+```
+
+Tests are also executed automatically through GitHub Actions
+when changes are pushed to the main branch or submitted
+through a pull request.
 
 ## Process Models
 
@@ -67,14 +129,15 @@ The editable Enterprise Architect model is available at
 
 ## Development Roadmap
 
-| Version | Objective                                                      | Status      |
-| ------- | -------------------------------------------------------------- | ----------- |
-| v0.0    | Raspberry Pi foundation and monitoring                         | Complete    |
-| v0.1    | Git, documentation, requirements, architecture, Jira and tests | In progress |
-| v0.2    | ESP32 and environmental sensor integration                     | Planned     |
-| v0.3    | Database, Python backend and REST API                          | Planned     |
-| v0.4    | Dashboard and automation                                       | Planned     |
-| v0.5+   | Security, deployment maturity, analytics and AI experiments    | Future      |
+| Version | Objective                                                                   | Status      |
+| ------- | --------------------------------------------------------------------------- | ----------- |
+| v0.0    | Raspberry Pi setup, SSH access, CPU monitoring and systemd automation       | Complete    |
+| v0.1    | Git, GitHub, requirements, architecture, BPMN/UML, Jira, pytest and CI      | Complete    |
+| v0.2    | FastAPI backend, REST endpoints, CPU monitoring integration and API testing | In progress |
+| v0.3    | Database integration, ESP32 connectivity and environmental sensors          | Planned     |
+| v0.4    | Web dashboard, visualization and garden automation                          | Planned     |
+| v0.5    | Security hardening, threat modeling, deployment and operational reliability | Future      |
+| v0.6+   | Advanced analytics, AI/ML and intelligent garden management                 | Future      |
 
 Project tasks and acceptance criteria will be managed through Jira, while technical documentation and source code will be maintained in GitHub.
 
