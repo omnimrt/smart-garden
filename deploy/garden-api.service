@@ -1,0 +1,13 @@
+Description=Smart Garden FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=omnimrt
+WorkingDirectory=/home/omnimrt/gardenpi
+ExecStart=/home/omnimrt/gardenpi/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
