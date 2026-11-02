@@ -66,9 +66,12 @@ Smart Garden includes a Python-based REST API built with FastAPI.
 
 ### Current Endpoints
 
-| Method | Endpoint  | Description                   |
-| ------ | --------- | ----------------------------- |
-| GET    | `/health` | Returns the API health status |
+### Current Endpoints
+
+| Method | Endpoint      | Description                                             |
+| ------ | ------------- | ------------------------------------------------------- |
+| GET    | `/health`     | Returns the API health status                           |
+| GET    | `/api/system` | Returns the latest recorded Raspberry Pi system metrics |
 
 Example response:
 
@@ -77,6 +80,34 @@ Example response:
   "status": "ok"
 }
 ```
+
+### System Monitoring API
+
+`GET /api/system` retrieves the latest CPU temperature
+measurement from the existing `readings.csv` file.
+
+Example response (HTTP 200):
+
+```json
+{
+  "timestamp": "2026-11-02T19:05:00+01:00",
+  "cpu": {
+    "temperature_c": 31.2
+  }
+}
+```
+
+Error responses:
+
+- HTTP 404: Monitoring data is missing or empty.
+- HTTP 500: Stored monitoring data is invalid.
+
+The API reads existing measurements without triggering
+new hardware measurements. Data collection remains
+the responsibility of the systemd-managed monitoring script.
+
+Measurements are assumed to be appended chronologically.
+The API returns the final recorded row.
 
 ### Local Development
 
