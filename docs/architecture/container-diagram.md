@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph SG["Smart Garden — Planned Software System"]
         API["FastAPI Application<br/>REST API + Web Dashboard"]
-        DB[("SQLite Database")]
+        DB[("PostgreSQL Database")]
         ESP["ESP32 Firmware<br/>Sensor Acquisition"]
     end
 
@@ -22,7 +22,9 @@ flowchart TB
 ## Design Decisions
 
 - HTTP REST is the initial communication protocol between ESP32 and FastAPI.
-- Sensor measurements use best-effort delivery without persistent buffering.
-- SQLite is the initial database.
+- ESP32 uses bounded retries with temporary in-memory buffering.
+- Measurements may be lost if the ESP32 restarts before successful delivery.
+- Durable store-and-forward delivery is deferred.
+- PostgreSQL is the primary relational database (ADR-0002).
 - MQTT and store-and-forward delivery are deferred improvements.
 - The MVP dashboard will be served by FastAPI. A separate frontend application is deferred.
