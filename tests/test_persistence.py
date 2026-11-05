@@ -11,6 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from app.persistence import insert_measurement
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy import select, func
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.database import get_db
 
 load_dotenv()
 
@@ -469,3 +473,55 @@ def test_retry_after_sensor_metric_change(db_session):
             db_session,
             **{**payload, "metric": "temperature"},
         )
+
+def test_get_measurements_api(db_session):
+    device = Device(
+    device_id="api-test-device",
+     name="Test ESP32",
+    )
+    db_session.add(device)
+    db_session.flush()
+
+    sensor = Sensor(
+        sensor_id="api-test-sensor",
+        device_id=device.id,
+        metric="soil_moisture",
+    )
+    db_session.add(sensor)
+    db_session.flush()
+
+    insert_measurement(
+        db_session,
+        measurement_id="api-test-reading-001",
+        device_external_id="api-test-device",
+        sensor_external_id="api-test-sensor",
+        metric="soil_moisture",
+        value=2450,
+        unit="adc_raw",
+    )
+
+    # Replace the application's normal database dependency
+    # with our isolated test session.
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/garden/measurements",
+                params={
+                    "sensor_id": "api-test-sensor",
+                    "limit": 10,
+                },
+            )
+
+        assert response.status_code == 200
+
+        data = response.json()
+
+        assert len(data) == 1
+        assert data[0]["measurement_id"] == "api-test-reading-001"
+        assert data[0]["value"] == 2450
+        assert data[0]["metric"] == "soil_moisture"
+
+    finally:
+        app.dependency_overrides.clear()

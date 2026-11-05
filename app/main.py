@@ -1,10 +1,14 @@
 
 from pathlib import Path
-
 from fastapi import FastAPI, HTTPException
-
 from app.system_monitor import get_latest_reading
+from typing import Annotated
 
+from fastapi import Depends, Query
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.persistence import get_measurements
 
 app = FastAPI()
 
@@ -67,3 +71,31 @@ def get_system_status():
             "temperature_c": reading["temperature_c"]
         }
     }
+
+@app.get(
+    "/api/garden/measurements",
+    tags=["Garden"],
+    summary="Retrieve sensor measurements",
+)
+def read_measurements(
+    sensor_id: Annotated[str, Query(min_length=1)],
+    session: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+):
+    measurements = get_measurements(
+        session=session,
+        sensor_external_id=sensor_id,
+        limit=limit,
+    )
+
+    return [
+        {
+            "measurement_id": m.measurement_id,
+            "sensor_id": sensor_id,
+            "metric": m.metric,
+            "value": m.value,
+            "unit": m.unit,
+            "recorded_at": m.recorded_at,
+        }
+        for m in measurements
+    ]
