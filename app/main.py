@@ -6,9 +6,15 @@ from typing import Annotated
 
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import get_db
 from app.persistence import get_measurements
+from fastapi import HTTPException, Response, status
+
+from app.auth import require_sensor_api_key
+from app.persistence import insert_measurement
+from app.schemas import MeasurementCreate, MeasurementResponse
 
 app = FastAPI()
 
@@ -99,3 +105,62 @@ def read_measurements(
         }
         for m in measurements
     ]
+
+@app.post(
+    "/api/garden/measurements",
+    response_model=MeasurementResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Garden"],
+    summary="Submit sensor measurement",
+)
+def create_measurement(
+    payload: MeasurementCreate,
+    response: Response,
+    session: Annotated[Session, Depends(get_db)],
+    _: Annotated[None, Depends(require_sensor_api_key)],
+):
+    try:
+        measurement, created = insert_measurement(
+            session=session,
+            measurement_id=payload.measurement_id,
+            device_external_id=payload.device_id,
+            sensor_external_id=payload.sensor_id,
+            metric=payload.metric,
+            value=payload.value,
+            unit=payload.unit,
+        )
+
+        result = MeasurementResponse(
+            id=measurement.id,
+            status="created" if created else "existing",
+            recorded_at=measurement.recorded_at.isoformat(),
+        )
+
+        session.commit()
+
+    except ValueError as exc:
+        session.rollback()
+
+        if str(exc) == "Conflicting duplicate measurement":
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc),
+            ) from exc
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except SQLAlchemyError as exc:
+        session.rollback()
+
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable",
+        ) from exc
+
+    if not created:
+        response.status_code = status.HTTP_200_OK
+
+    return result

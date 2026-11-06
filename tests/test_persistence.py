@@ -1,4 +1,7 @@
 import os
+from unittest.mock import patch
+from unittest.mock import MagicMock
+from sqlalchemy.exc import OperationalError
 
 import pytest
 from dotenv import load_dotenv
@@ -525,3 +528,244 @@ def test_get_measurements_api(db_session):
 
     finally:
         app.dependency_overrides.clear()
+
+def test_post_measurement_without_api_key():
+    payload = {
+        "measurement_id": "auth-test-001",
+        "device_id": "esp32-01",
+        "sensor_id": "soil-01",
+        "metric": "soil_moisture",
+        "value": 2450,
+        "unit": "adc_raw",
+    }
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/garden/measurements",
+            json=payload,
+        )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or missing API key"
+
+def test_post_measurement_authenticated(db_session):
+    device = Device(
+        device_id="post-test-device",
+        name="Test ESP32",
+    )
+    db_session.add(device)
+    db_session.flush()
+
+    sensor = Sensor(
+        sensor_id="post-test-sensor",
+        device_id=device.id,
+        metric="soil_moisture",
+    )
+    db_session.add(sensor)
+    db_session.flush()
+
+    payload = {
+        "measurement_id": "post-test-reading-001",
+        "device_id": "post-test-device",
+        "sensor_id": "post-test-sensor",
+        "metric": "soil_moisture",
+        "value": 2450,
+        "unit": "adc_raw",
+    }
+
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    try:
+        with patch.dict(os.environ, {"SENSOR_API_KEY": "test-api-key"}):
+            with TestClient(app) as client:
+                response = client.post(
+                    "/api/garden/measurements",
+                    json=payload,
+                    headers={"X-API-Key": "test-api-key"},
+                )
+
+        assert response.status_code == 201
+
+        data = response.json()
+
+        assert data["status"] == "created"
+        assert isinstance(data["id"], int)
+        assert data["recorded_at"]
+
+        stored = db_session.scalar(
+            select(Measurement).where(
+                Measurement.measurement_id == "post-test-reading-001"
+            )
+        )
+
+        assert stored is not None
+        assert stored.value == 2450
+        assert stored.metric == "soil_moisture"
+
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+def test_post_measurement_identical_retry(db_session):
+    device = Device(
+        device_id="retry-api-device",
+        name="Test ESP32",
+    )
+    db_session.add(device)
+    db_session.flush()
+
+    sensor = Sensor(
+        sensor_id="retry-api-sensor",
+        device_id=device.id,
+        metric="soil_moisture",
+    )
+    db_session.add(sensor)
+    db_session.flush()
+
+    payload = {
+        "measurement_id": "retry-api-reading-001",
+        "device_id": "retry-api-device",
+        "sensor_id": "retry-api-sensor",
+        "metric": "soil_moisture",
+        "value": 2450,
+        "unit": "adc_raw",
+    }
+
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    try:
+        with patch.dict(os.environ, {"SENSOR_API_KEY": "test-api-key"}):
+            with TestClient(app) as client:
+                first = client.post(
+                    "/api/garden/measurements",
+                    json=payload,
+                    headers={"X-API-Key": "test-api-key"},
+                )
+
+                second = client.post(
+                    "/api/garden/measurements",
+                    json=payload,
+                    headers={"X-API-Key": "test-api-key"},
+                )
+
+        assert first.status_code == 201
+        assert second.status_code == 200
+
+        assert first.json()["status"] == "created"
+        assert second.json()["status"] == "existing"
+        assert first.json()["id"] == second.json()["id"]
+
+        count = db_session.scalar(
+            select(func.count())
+            .select_from(Measurement)
+            .where(
+                Measurement.measurement_id == "retry-api-reading-001"
+            )
+        )
+
+        assert count == 1
+
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+def test_post_measurement_conflicting_retry(db_session):
+    device = Device(
+        device_id="conflict-api-device",
+        name="Test ESP32",
+    )
+    db_session.add(device)
+    db_session.flush()
+
+    sensor = Sensor(
+        sensor_id="conflict-api-sensor",
+        device_id=device.id,
+        metric="soil_moisture",
+    )
+    db_session.add(sensor)
+    db_session.flush()
+
+    payload = {
+        "measurement_id": "conflict-api-reading-001",
+        "device_id": "conflict-api-device",
+        "sensor_id": "conflict-api-sensor",
+        "metric": "soil_moisture",
+        "value": 2450,
+        "unit": "adc_raw",
+    }
+
+    app.dependency_overrides[get_db] = lambda: db_session
+
+    try:
+        with patch.dict(os.environ, {"SENSOR_API_KEY": "test-api-key"}):
+            with TestClient(app) as client:
+                first = client.post(
+                    "/api/garden/measurements",
+                    json=payload,
+                    headers={"X-API-Key": "test-api-key"},
+                )
+
+                conflicting = client.post(
+                    "/api/garden/measurements",
+                    json={**payload, "value": 3000},
+                    headers={"X-API-Key": "test-api-key"},
+                )
+
+        assert first.status_code == 201
+        assert conflicting.status_code == 409
+        assert conflicting.json()["detail"] == (
+            "Conflicting duplicate measurement"
+        )
+
+        stored = db_session.scalar(
+            select(Measurement).where(
+                Measurement.measurement_id == payload["measurement_id"]
+            )
+        )
+
+        assert stored is not None
+        assert stored.value == 2450
+
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+def test_post_measurement_database_failure(db_session):
+    fake_session = MagicMock()
+
+    fake_session.commit.side_effect = OperationalError(
+        "COMMIT",
+        {},
+        Exception("Simulated database failure"),
+    )
+
+    app.dependency_overrides[get_db] = lambda: fake_session
+
+    try:
+        with patch.dict(os.environ, {"SENSOR_API_KEY": "test-api-key"}):
+            with patch("app.main.insert_measurement") as mock_insert:
+                mock_measurement = MagicMock()
+                mock_measurement.id = 123
+                mock_measurement.recorded_at.isoformat.return_value = (
+                    "2026-11-06T00:00:00+00:00"
+                )
+
+                mock_insert.return_value = (mock_measurement, True)
+
+                with TestClient(app) as client:
+                    response = client.post(
+                        "/api/garden/measurements",
+                        json={
+                            "measurement_id": "db-failure-001",
+                            "device_id": "esp32-01",
+                            "sensor_id": "soil-01",
+                            "metric": "soil_moisture",
+                            "value": 2450,
+                            "unit": "adc_raw",
+                        },
+                        headers={"X-API-Key": "test-api-key"},
+                    )
+
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Database temporarily unavailable"
+        fake_session.rollback.assert_called_once()
+
+    finally:
+        app.dependency_overrides.pop(get_db, None)
