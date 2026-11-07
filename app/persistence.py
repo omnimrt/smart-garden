@@ -42,7 +42,7 @@ def insert_measurement(
         original_device = session.get(Device, existing.device_id)
         original_sensor = session.get(Sensor, existing.sensor_id)
 
-   
+
         return (
             original_device is not None
             and original_sensor is not None
@@ -52,7 +52,7 @@ def insert_measurement(
             and existing.unit == unit
             and existing.metric == metric
         )
-    
+
     # First check whether this measurement already exists
     existing = session.scalar(
         select(Measurement).where(

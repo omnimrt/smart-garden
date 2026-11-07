@@ -80,7 +80,7 @@ def test_get_measurements(db_session):
         pot_id=pot.id,
         value=2450,
         unit="adc_raw",
-    )   
+    )
 
     db_session.add(measurement)
     db_session.flush()

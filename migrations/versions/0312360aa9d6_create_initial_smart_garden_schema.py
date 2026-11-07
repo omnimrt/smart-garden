@@ -1,7 +1,7 @@
 """create initial smart garden schema
 
 Revision ID: 0312360aa9d6
-Revises: 
+Revises:
 Create Date: 2026-11-05 01:13:26.366394
 
 """
