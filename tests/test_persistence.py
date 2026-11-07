@@ -769,3 +769,100 @@ def test_post_measurement_database_failure(db_session):
 
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+def test_concurrent_identical_measurement_inserts():
+    from concurrent.futures import ThreadPoolExecutor
+    from uuid import uuid4
+
+
+    unique = uuid4().hex
+    device_external_id = f"concurrent-device-{unique}"
+    sensor_external_id = f"concurrent-sensor-{unique}"
+    measurement_external_id = f"concurrent-reading-{unique}"
+
+    # Set up test records using the test database
+    test_engine = create_engine(TEST_DATABASE_URL)
+    admin_engine = create_engine(os.environ["TEST_MIGRATION_DATABASE_URL"])
+
+    try:
+        with Session(test_engine) as setup:
+            device = Device(
+                device_id=device_external_id,
+                name="Concurrent Test Device",
+            )
+            setup.add(device)
+            setup.flush()
+
+            sensor = Sensor(
+                sensor_id=sensor_external_id,
+                device_id=device.id,
+                metric="soil_moisture",
+            )
+            setup.add(sensor)
+            setup.commit()
+
+        def insert():
+            with Session(test_engine) as session:
+                measurement, created = insert_measurement(
+                    session=session,
+                    measurement_id=measurement_external_id,
+                    device_external_id=device_external_id,
+                    sensor_external_id=sensor_external_id,
+                    metric="soil_moisture",
+                    value=2450,
+                    unit="adc_raw",
+                )
+                result = created
+                session.commit()
+                return result
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: insert(), range(2)))
+
+        assert sorted(results) == [False, True]
+
+        with Session(test_engine) as session:
+            count = session.scalar(
+                select(func.count())
+                .select_from(Measurement)
+                .where(
+                    Measurement.measurement_id
+                    == measurement_external_id
+                )
+            )
+
+            assert count == 1
+
+    finally:
+        with Session(admin_engine) as cleanup:
+            measurement = cleanup.scalar(
+                select(Measurement).where(
+                    Measurement.measurement_id == measurement_external_id
+                )
+            )
+
+            if measurement:
+                cleanup.delete(measurement)
+
+            sensor = cleanup.scalar(
+                select(Sensor).where(
+                    Sensor.sensor_id == sensor_external_id
+                )
+            )
+
+            if sensor:
+                cleanup.delete(sensor)
+
+            device = cleanup.scalar(
+                select(Device).where(
+                    Device.device_id == device_external_id
+                )
+            )
+
+            if device:
+                cleanup.delete(device)
+
+            cleanup.commit()
+
+        test_engine.dispose()
+        admin_engine.dispose()
