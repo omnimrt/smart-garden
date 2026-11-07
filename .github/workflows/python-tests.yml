@@ -10,6 +10,27 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_ci
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://garden_app:app_ci@localhost:5432/smart_garden_test
+      TEST_DATABASE_URL: postgresql+psycopg://garden_app:app_ci@localhost:5432/smart_garden_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+psycopg://garden_owner:owner_ci@localhost:5432/smart_garden_test
+      SENSOR_API_KEY: test-api-key
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,6 +44,34 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+
+      - name: Provision PostgreSQL roles and test database
+        env:
+          PGPASSWORD: postgres_ci
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE garden_owner LOGIN PASSWORD 'owner_ci';
+          CREATE ROLE garden_app LOGIN PASSWORD 'app_ci';
+          CREATE DATABASE smart_garden_test OWNER garden_owner;
+          SQL
+
+          psql -h localhost -U postgres -d smart_garden_test -v ON_ERROR_STOP=1 <<'SQL'
+          REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+          GRANT USAGE ON SCHEMA public TO garden_app;
+          SQL
+
+      - name: Apply Alembic migrations
+        env:
+          DB_TARGET: test
+        run: python -m alembic upgrade head
+
+      - name: Configure application permissions
+        env:
+          PGPASSWORD: postgres_ci
+        run: |
+          psql -h localhost -U postgres -d smart_garden_test \
+            -v ON_ERROR_STOP=1 \
+            -f scripts/database_permissions.sql
 
       - name: Run tests
         run: python -m pytest -v
