@@ -96,6 +96,8 @@ The initial schema contains four entities:
 - `value`: Raw numerical measurement
 - `unit`: Measurement unit, e.g. adc_raw
 - `recorded_at`: Server-generated timestamp with timezone
+- `device_id`: Foreign key referencing the device that originally submitted the measurement
+- `metric`: Measurement type preserved at ingestion (e.g., soil_moisture)
 
 ## 6. Data Integrity Rules
 
@@ -108,6 +110,10 @@ The initial schema contains four entities:
 - Unsupported metric/unit combinations must be rejected.
 - Raw ADC measurements are preserved without assuming calibrated percentages.
 - Measurement identifiers must remain unique across ESP32 restarts; a UUID-based approach is preferred.
+- Each measurement preserves the identity of the submitting device.
+- Historical device and pot associations must remain unchanged after sensor reassignment.
+- Identical retries must be evaluated against the original stored measurement, not only the sensor's current assignment.
+- Device authentication and authorization are required before acknowledging historical retries.
 
 ## 7. REST API Contracts
 
