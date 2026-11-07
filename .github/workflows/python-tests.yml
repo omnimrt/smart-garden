@@ -15,7 +15,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres_ci
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: postgres
         ports:
           - 5432:5432
@@ -26,9 +26,9 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql+psycopg://garden_app:app_ci@localhost:5432/smart_garden_test
-      TEST_DATABASE_URL: postgresql+psycopg://garden_app:app_ci@localhost:5432/smart_garden_test
-      TEST_MIGRATION_DATABASE_URL: postgresql+psycopg://garden_owner:owner_ci@localhost:5432/smart_garden_test
+      DATABASE_URL: postgresql+psycopg://garden_app:${{ secrets.CI_APP_PASSWORD }}@localhost:5432/smart_garden_test
+      TEST_DATABASE_URL: postgresql+psycopg://garden_app:${{ secrets.CI_APP_PASSWORD }}@localhost:5432/smart_garden_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+psycopg://garden_owner:${{ secrets.CI_OWNER_PASSWORD }}@localhost:5432/smart_garden_test
       SENSOR_API_KEY: test-api-key
 
     steps:
@@ -47,11 +47,15 @@ jobs:
 
       - name: Provision PostgreSQL roles and test database
         env:
-          PGPASSWORD: postgres_ci
+          PGPASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
+          CI_OWNER_PASSWORD: ${{ secrets.CI_OWNER_PASSWORD }}
+          CI_APP_PASSWORD: ${{ secrets.CI_APP_PASSWORD }}
         run: |
-          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE ROLE garden_owner LOGIN PASSWORD 'owner_ci';
-          CREATE ROLE garden_app LOGIN PASSWORD 'app_ci';
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q <<'SQL'
+          \getenv owner_password CI_OWNER_PASSWORD
+          \getenv app_password CI_APP_PASSWORD
+          CREATE ROLE garden_owner LOGIN PASSWORD :'owner_password';
+          CREATE ROLE garden_app LOGIN PASSWORD :'app_password';
           CREATE DATABASE smart_garden_test OWNER garden_owner;
           SQL
 
@@ -67,7 +71,7 @@ jobs:
 
       - name: Configure application permissions
         env:
-          PGPASSWORD: postgres_ci
+          PGPASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         run: |
           psql -h localhost -U postgres -d smart_garden_test \
             -v ON_ERROR_STOP=1 \
